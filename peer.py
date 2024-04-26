@@ -8,8 +8,10 @@ class Recorder:
     """A Recorder class to help Peer distinguish which files should be sent.
 
     Create a sync_record.json in cwd with the following structure:
-    {"path_1": {"ownership": val_1a, "mtime": val_1b},
-     "path_2": {"ownership": val_2a, "mtime": val_2b}}
+     {
+         "path_1": {"ownership": val_1a, "mtime": val_1b},
+         "path_2": {"ownership": val_2a, "mtime": val_2b},
+     }
 
     Typical usage example:
 
@@ -18,11 +20,11 @@ class Recorder:
     """
 
     def __init__(self):
-        self.record_file_dir = './sync_record.json'
-        self.share_dir = './share'
+        self.record_file_dir = "./sync_record.json"
+        self.share_dir = "./share"
         # Try to read from local record, if no local record, an empty record will be created.
         try:
-            with open(self.record_file_dir, 'r') as r:
+            with open(self.record_file_dir, "r") as r:
                 self.record = json.load(r)
         except (json.JSONDecodeError, FileNotFoundError):
             self.record = {}
@@ -31,31 +33,31 @@ class Recorder:
         if not os.path.isdir(path):
             if path not in self.record:  # New added files.
                 return True
-            elif 'mtime' in self.record[path].keys():  # Modified files.
-                return os.path.getmtime(path) != self.record[path]['mtime']
+            elif "mtime" in self.record[path].keys():  # Modified files.
+                return os.path.getmtime(path) != self.record[path]["mtime"]
             else:
                 # The file recorded with no mtime means the connection broken during the transmission,
                 # the owner should resend this file.
-                return self.record[path]['ownership']
+                return self.record[path]["ownership"]
         else:
             return False
 
     def set_ownership(self, path: str, val: bool):
         # When a peer starts to send/receive a file, record the ownership to True/False.
-        self.record[path] = {'ownership': val}
-        with open(self.record_file_dir, 'w') as r:
+        self.record[path] = {"ownership": val}
+        with open(self.record_file_dir, "w") as r:
             json.dump(self.record, r)
 
     def add_rec(self, path: str):
         # After sending/receiving a file, record the mtime of that file.
-        self.record[path].update({'mtime': os.stat(path).st_mtime})
-        with open(self.record_file_dir, 'w') as r:
+        self.record[path].update({"mtime": os.stat(path).st_mtime})
+        with open(self.record_file_dir, "w") as r:
             json.dump(self.record, r)
 
     def del_rec(self, path: str):
-        # Before receive a 
+        # Before receive a
         self.record.pop(path, None)
-        with open(self.record_file_dir, 'w') as r:
+        with open(self.record_file_dir, "w") as r:
             json.dump(self.record, r)
 
     def get_unsent_files(self) -> list:
@@ -99,32 +101,32 @@ class Peer:
         # A mode variable to record the running status, 0: initial mode, 1: client mode, 2: server mode
         self.mode = 0
         # header: (length of file path, size of the file)
-        self.header = Struct('!II')
+        self.header = Struct("!II")
 
         self.__start()
 
     def __run_as_client(self):
-        print(f'[+] Trying to connecting to {self.peer_ip}:{self.port}.')
+        print(f"[+] Trying to connecting to {self.peer_ip}:{self.port}.")
         try:
             self.sock.connect((self.peer_ip, self.port))
             # The connection socket of a client is the origin socket.
             self.conn_sock = self.sock
             # Turns the mode to client mode (1)
             self.mode = 1
-            print(f'[+] Connected to {self.peer_ip}:{self.port}, running as client.')
+            print(f"[+] Connected to {self.peer_ip}:{self.port}, running as client.")
         except (ConnectionError, OSError):
-            print('[+] Peer does not start up, running as server.')
+            print("[+] Peer does not start up, running as server.")
 
     def __run_as_server(self):
         try:
-            self.sock.bind(('', self.port))
+            self.sock.bind(("", self.port))
             self.sock.listen(2)
-            print('[+] Ready to accept connection.')
+            print("[+] Ready to accept connection.")
             self.conn_sock, address = self.sock.accept()
             self.mode = 2
-            print(f'[+] Accepted connection from {address[0]}:{address[1]}.')
+            print(f"[+] Accepted connection from {address[0]}:{address[1]}.")
         except (OSError, socket.timeout):
-            print('[+] An Error occurred, trying to resume.')
+            print("[+] An Error occurred, trying to resume.")
 
     def __start(self):
         # Alternate attempts running as client and server until a connection is established.
@@ -137,7 +139,7 @@ class Peer:
         # Get a list of files need to be sent.
         unsent_files = self.recorder.get_unsent_files()
         if unsent_files:
-            print('[+] New file(s) found, start to send file(s).')
+            print("[+] New file(s) found, start to send file(s).")
             for path in unsent_files:
                 # Mark the ownership.
                 self.recorder.set_ownership(path, True)
@@ -148,8 +150,8 @@ class Peer:
                 # header_name: header + path
                 header_path = self.header.pack(len(path_bin), file_size) + path_bin
                 self.conn_sock.send(header_path)
-                print(f'[+] Sending {path}.')
-                with open(path, 'rb') as f:
+                print(f"[+] Sending {path}.")
+                with open(path, "rb") as f:
                     self.conn_sock.sendfile(f)
                 self.recorder.add_rec(path)
         # Using header (0, 0) to tell the receiver all files has been sent.
@@ -174,13 +176,17 @@ class Peer:
                     self.recorder.set_ownership(path, False)
                     received_bytes = 0
                     # If the folder does not exist, create one.
-                    if not os.path.exists(path.rsplit(sep='/', maxsplit=1)[0]):
-                        os.mkdir(path.rsplit(sep='/', maxsplit=1)[0])
-                    print(f'[+] Receiving {path}.')
-                    with open(path, 'wb') as f:
+                    if not os.path.exists(path.rsplit(sep="/", maxsplit=1)[0]):
+                        os.mkdir(path.rsplit(sep="/", maxsplit=1)[0])
+                    print(f"[+] Receiving {path}.")
+                    with open(path, "wb") as f:
                         # Receive from buffer until all bytes of the file has been read.
                         while received_bytes < file_size:
-                            bytes_read = self.conn_sock.recv(min(file_size - received_bytes, self.receive_buffer_size))
+                            bytes_read = self.conn_sock.recv(
+                                min(
+                                    file_size - received_bytes, self.receive_buffer_size
+                                )
+                            )
                             f.write(bytes_read)
                             received_bytes += len(bytes_read)
                     self.recorder.add_rec(path)
@@ -191,14 +197,14 @@ class Peer:
         if self.mode == 2:
             # The client shutdown, waiting for the next connection request.
             self.conn_sock, address = self.sock.accept()
-            print(f'[+] Accepted connection from {address[0]}:{address[1]}.')
+            print(f"[+] Accepted connection from {address[0]}:{address[1]}.")
         else:
             # The server shutdown, the client will become a new server.
             self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.__run_as_server()
             if self.mode != 2:
                 # Failed to change to a server, restart the services.
-                print('[+] Failed to resume, restart services.')
+                print("[+] Failed to resume, restart services.")
                 self.mode = 0
                 self.__start()
 
@@ -208,20 +214,19 @@ class Peer:
                 if self.mode == 2:
                     # Server receives command from client act the corresponding action.
                     cmd = self.conn_sock.recv(1).decode()
-                    if cmd == 's':
+                    if cmd == "s":
                         self.__send()
-                    elif cmd == 'r':
+                    elif cmd == "r":
                         self.__receive()
                 elif self.mode == 1:
                     # Client receive files from server.
-                    self.conn_sock.send(b's')  # Let server send files.
+                    self.conn_sock.send(b"s")  # Let server send files.
                     self.__receive()
 
                     # Client send files to server.
-                    self.conn_sock.send(b'r')  # Let server receive files.
+                    self.conn_sock.send(b"r")  # Let server receive files.
                     self.__send()
             except ConnectionError:
                 # One peer is killed, resume from the exception.
-                print('[+] Connection broken, trying to resume.')
+                print("[+] Connection broken, trying to resume.")
                 self.resume()
-
